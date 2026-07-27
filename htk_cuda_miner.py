@@ -77,7 +77,7 @@ def _compile_kernel(cu_source):
         patched = _STDINT_SHIM + "\n".join(lines)
         try:
             mod = cp.RawModule(code=patched, backend="nvrtc",
-                               options=("-std=c++14",),
+                               options=("-std=c++14", "--maxrregcount=64"),
                                name_expressions=[KERNEL_NAME])
             return mod.get_function(KERNEL_NAME)
         except Exception as e_nvrtc:
@@ -103,10 +103,16 @@ def _autotune(cp, kern, dev, d_prev, d_nonce, d_flag):
     calib = sm * 64
     best = None
     for block in BLOCK_SIZES:
-        _benchmark(cp, kern, d_prev, d_zero, d_nonce, d_flag, block, calib)
-        hr = _benchmark(cp, kern, d_prev, d_zero, d_nonce, d_flag, block, calib)
+        try:
+            _benchmark(cp, kern, d_prev, d_zero, d_nonce, d_flag, block, calib)
+            hr = _benchmark(cp, kern, d_prev, d_zero, d_nonce, d_flag, block, calib)
+        except Exception as e:
+            log(f"[autotune] block={block} failed ({e}), skipping")
+            continue
         if best is None or hr > best[0]:
             best = (hr, block)
+    if best is None:
+        raise RuntimeError("autotune: all block sizes failed — GPU may be too small")
     hashrate, block = best
     grid = max(calib, int(hashrate * TARGET_LAUNCH_SECONDS) // block)
     grid = max(1, min(grid, max_grid))
