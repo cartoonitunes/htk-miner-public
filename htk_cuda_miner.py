@@ -282,9 +282,25 @@ def spawn_worker(ctx, gpu_id, worker_id, num_workers, cu_source, job_buf, job_ge
     return p
 
 
+def _detect_gpus():
+    """Count GPUs without initializing CUDA in the parent process.
+
+    CuPy's getDeviceCount() initializes the CUDA runtime, which poisons
+    any later multiprocessing-spawn children. Use nvidia-smi instead."""
+    import subprocess
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
+            text=True, timeout=10)
+        return [int(line.strip()) for line in out.strip().splitlines() if line.strip()]
+    except Exception:
+        # Fallback: import cupy only if nvidia-smi is missing.
+        import cupy as cp
+        return list(range(cp.cuda.runtime.getDeviceCount()))
+
+
 def run_miner(args, cu_source):
-    import cupy as cp
-    gpus = list(range(cp.cuda.runtime.getDeviceCount()))
+    gpus = _detect_gpus()
     if not gpus:
         raise SystemExit("No CUDA GPUs detected.")
     num_workers = len(gpus)
