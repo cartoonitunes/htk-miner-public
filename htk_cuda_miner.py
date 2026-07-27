@@ -8,6 +8,7 @@ import os
 import queue
 import secrets
 import signal
+import sys
 import threading
 import time
 from pathlib import Path
@@ -188,10 +189,16 @@ def gpu_worker(gpu_id, worker_id, num_workers, cu_source, job_buf, job_gen, job_
                 hashes = 0
                 t0 = time.time()
     except Exception as e:
+        msg = f"{type(e).__name__}: {e}"
         try:
-            out_q.put({"type": "error", "gpu": gpu_id, "msg": f"{type(e).__name__}: {e}"})
+            out_q.put({"type": "error", "gpu": gpu_id, "msg": msg})
         except Exception:
             pass
+        # os._exit() skips atexit/flush, so the queue message can be lost if the
+        # parent dies or hasn't drained yet. Write to stderr too so the failure
+        # is always visible in the instance logs.
+        sys.stderr.write(f"[gpu {gpu_id}] worker died: {msg}\n")
+        sys.stderr.flush()
         os._exit(1)
 
 
