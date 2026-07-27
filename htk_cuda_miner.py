@@ -47,6 +47,15 @@ def log(*a):
     print(time.strftime("%H:%M:%S"), *a, flush=True)
 
 
+_STDINT_SHIM = """\
+// NVRTC shim: stdint types without pulling in system headers
+typedef unsigned char      uint8_t;
+typedef unsigned short     uint16_t;
+typedef unsigned int       uint32_t;
+typedef unsigned long long uint64_t;
+"""
+
+
 def _compile_kernel(cu_source):
     import cupy as cp
     try:
@@ -54,22 +63,20 @@ def _compile_kernel(cu_source):
         arch = (f"-arch=sm_{cc}",)
     except Exception:
         arch = ()
-    # NVRTC doesn't search system include paths; add them explicitly so
-    # #include <stdint.h> works on minimal Docker images.
-    sys_includes = ()
-    for p in ("/usr/include", "/usr/local/include"):
-        if os.path.isdir(p):
-            sys_includes += (f"-I{p}",)
     try:
         mod = cp.RawModule(code=cu_source, backend="nvcc",
-                           options=("-O3", "-std=c++14") + arch + sys_includes,
+                           options=("-O3", "-std=c++14") + arch,
                            name_expressions=[KERNEL_NAME])
         return mod.get_function(KERNEL_NAME)
     except Exception as e_nvcc:
-        stripped = "\n".join(l for l in cu_source.splitlines() if "cuda_runtime.h" not in l)
+        # NVRTC can't resolve system headers (stdint.h, cuda_runtime.h).
+        # Strip those includes and prepend portable typedefs instead.
+        lines = [l for l in cu_source.splitlines()
+                 if "cuda_runtime.h" not in l and "stdint.h" not in l]
+        patched = _STDINT_SHIM + "\n".join(lines)
         try:
-            mod = cp.RawModule(code=stripped, backend="nvrtc",
-                               options=("-std=c++14",) + sys_includes,
+            mod = cp.RawModule(code=patched, backend="nvrtc",
+                               options=("-std=c++14",),
                                name_expressions=[KERNEL_NAME])
             return mod.get_function(KERNEL_NAME)
         except Exception as e_nvrtc:
