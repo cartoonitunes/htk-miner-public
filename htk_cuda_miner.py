@@ -54,16 +54,23 @@ def _compile_kernel(cu_source):
         arch = (f"-arch=sm_{cc}",)
     except Exception:
         arch = ()
+    # NVRTC doesn't search system include paths; add them explicitly so
+    # #include <stdint.h> works on minimal Docker images.
+    sys_includes = ()
+    for p in ("/usr/include", "/usr/local/include"):
+        if os.path.isdir(p):
+            sys_includes += (f"-I{p}",)
     try:
         mod = cp.RawModule(code=cu_source, backend="nvcc",
-                           options=("-O3", "-std=c++14") + arch,
+                           options=("-O3", "-std=c++14") + arch + sys_includes,
                            name_expressions=[KERNEL_NAME])
         return mod.get_function(KERNEL_NAME)
     except Exception as e_nvcc:
         stripped = "\n".join(l for l in cu_source.splitlines() if "cuda_runtime.h" not in l)
         try:
             mod = cp.RawModule(code=stripped, backend="nvrtc",
-                               options=("-std=c++14",), name_expressions=[KERNEL_NAME])
+                               options=("-std=c++14",) + sys_includes,
+                               name_expressions=[KERNEL_NAME])
             return mod.get_function(KERNEL_NAME)
         except Exception as e_nvrtc:
             raise RuntimeError(f"compile failed (nvcc: {e_nvcc}; nvrtc: {e_nvrtc})")
