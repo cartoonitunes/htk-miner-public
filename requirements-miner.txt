@@ -1,0 +1,5 @@
+# Rented GPU instance only (htk_cuda_miner.py / miner_watchdog.py).
+# Install cupy matching the box's CUDA: cupy-cuda12x for CUDA 12.x.
+cupy-cuda12x>=13.0
+numpy>=1.24
+requests>=2.31

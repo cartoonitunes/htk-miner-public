@@ -1,0 +1,18 @@
+# Secrets. The private key lives here; never commit it.
+.env
+.env.local
+
+# Runtime state
+found_nonces.jsonl
+minted.jsonl
+cost_history.jsonl
+.submit_state.json
+.tune_cache.json
+.hashrate_observed.json
+.alert_state.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/

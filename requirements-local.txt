@@ -1,0 +1,7 @@
+# Local machine only (submit_nonce.py / deploy.py / monitor.py).
+# No CUDA needed here.
+web3>=7.0
+eth-account>=0.13
+requests>=2.31
+python-dotenv>=1.0
+pycryptodome>=3.19
